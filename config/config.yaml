@@ -1,0 +1,3 @@
+apiVersion: banzaicloud.com/v1alpha1
+kind: App
+projectName: hpa-operator

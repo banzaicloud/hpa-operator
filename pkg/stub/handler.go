@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const hpaAnnotationPrefix = "hpaAnnotationPrefix"
+const hpaAnnotationPrefix = "autoscale"
 
 func NewHandler() sdk.Handler {
 	return &Handler{}

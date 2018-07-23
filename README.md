@@ -68,7 +68,7 @@ Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud
     helm install banzaicloud-stable/hpa-operator
     {{< / highlight >}}
 
-  1. Deploy Kafka chart, with autoscale annotations
+  2. Deploy Kafka chart, with autoscale annotations
 
     {{< highlight shell>}}
     cat > values.yaml <<EOF

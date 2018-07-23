@@ -27,8 +27,6 @@ type Handler struct {
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	switch o := event.Object.(type) {
-	case *appsv1.ReplicaSet:
-		return handleReplicaController(event.Deleted, o.Name, o.Namespace, o.APIVersion, o.Kind, o.Annotations, o.Spec.Template.Annotations)
 	case *appsv1.Deployment:
 		return handleReplicaController(event.Deleted, o.Name, o.Namespace, o.APIVersion, o.Kind, o.Annotations, o.Spec.Template.Annotations)
 	case *appsv1.StatefulSet:

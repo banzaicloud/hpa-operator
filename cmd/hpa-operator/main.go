@@ -23,7 +23,6 @@ func main() {
 	sdk.Watch("banzaicloud.com/v1alpha1", "App", "default", 5)
 	namespace := os.Getenv("OPERATOR_NAMESPACE")
 	//sdk.Watch("extensions/v1beta1", "Deployment", namespace, 5)
-	sdk.Watch("apps/v1", "ReplicaSet", namespace, 5)
 	sdk.Watch("apps/v1", "Deployment", namespace, 5)
 	sdk.Watch("apps/v1", "StatefulSet", namespace, 5)
 	sdk.Handle(stub.NewHandler())

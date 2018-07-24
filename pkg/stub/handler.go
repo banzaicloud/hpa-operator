@@ -27,16 +27,19 @@ type Handler struct {
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
+	if event.Deleted {
+		return nil
+	}
 	switch o := event.Object.(type) {
 	case *appsv1.Deployment:
-		return handleReplicaController(event.Deleted, o, o.GroupVersionKind(), o.Spec.Template.Annotations)
+		return handleReplicaController(o, o.GroupVersionKind(), o.Spec.Template.Annotations)
 	case *appsv1.StatefulSet:
-		return handleReplicaController(event.Deleted, o, o.GroupVersionKind(), o.Spec.Template.Annotations)
+		return handleReplicaController(o, o.GroupVersionKind(), o.Spec.Template.Annotations)
 	}
 	return nil
 }
 
-func handleReplicaController(deleted bool, o metav1.Object, gvk schema.GroupVersionKind, podAnnotations map[string]string) error {
+func handleReplicaController(o metav1.Object, gvk schema.GroupVersionKind, podAnnotations map[string]string) error {
 	logrus.Infof("handle  : %v", o.GetName())
 	annotations := o.GetAnnotations()
 	if !checkAutoscaleAnnotationIsPresent(annotations) {
@@ -68,25 +71,17 @@ func handleReplicaController(deleted bool, o metav1.Object, gvk schema.GroupVers
 	}
 
 	if exists {
-		if deleted {
-			logrus.Infof("HorizontalPodAutoscaler found, will be deleted!")
-			err := sdk.Delete(hpa)
-			if err != nil && !errors.IsAlreadyExists(err) {
-				logrus.Errorf("Failed to delete HPA: %v", err)
-				return err
-			}
-		} else {
-			logrus.Infof("HorizontalPodAutoscaler found, will be updated")
-			hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
-			if hpa == nil {
-				return nil
-			}
-			err := sdk.Update(hpa)
-			if err != nil && !errors.IsAlreadyExists(err) {
-				logrus.Errorf("Failed to update HPA: %v", err)
-				return err
-			}
+		logrus.Infof("HorizontalPodAutoscaler found, will be updated")
+		hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
+		if hpa == nil {
+			return nil
 		}
+		err := sdk.Update(hpa)
+		if err != nil && !errors.IsAlreadyExists(err) {
+			logrus.Errorf("Failed to update HPA: %v", err)
+			return err
+		}
+
 	} else {
 		logrus.Infof("HorizontalPodAutoscaler doesn't exist will be created")
 		hpa := createHorizontalPodAutoscaler(o, gvk, annotations)

@@ -13,7 +13,7 @@ Autoscale annotations can be placed:
 
 - directly on Deployment / StatefulSet:
 
-  {{< highlight yml>}}
+ ```
   apiVersion: extensions/v1beta1
   kind: Deployment
   metadata:
@@ -23,11 +23,11 @@ Autoscale annotations can be placed:
       autoscale/minReplicas: "1"
       autoscale/maxReplicas: "3"
       autoscale/cpu: "70"
-  {{< / highlight >}}
+  ```
 
 - or on `spec.template.metadata.annotations`:
 
-  {{< highlight yml>}}
+ ```
   apiVersion: extensions/v1beta1
   kind: Deployment
   ...
@@ -41,7 +41,7 @@ Autoscale annotations can be placed:
           autoscale/minReplicas: "1"
           autoscale/maxReplicas: "3"
           autoscale/cpu: "70"
-  {{< / highlight >}}      
+  ```  
 
 The [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator) takes care of creating, deleting, updating HPA, with other words keeping in sync with your deployment annotations.
 
@@ -64,13 +64,13 @@ Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud
 
   1. Deploy operator
 
-    {{< highlight shell>}}
+   ```
     helm install banzaicloud-stable/hpa-operator
-    {{< / highlight >}}
+   ```
 
   2. Deploy Kafka chart, with autoscale annotations
 
-    {{< highlight shell>}}
+   ```
     cat > values.yaml <<EOF
     {
         "statefullset": {
@@ -84,15 +84,15 @@ Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud
     EOF
 
     helm install -f values.yaml banzaicloud-stable/kafka
-    {{< / highlight >}}
+   ```
 
   1. Check if HPA is created
 
-    {{< highlight shell>}}
+   ```
     kubectl get hpa
 
     NAME      REFERENCE           TARGETS           MINPODS   MAXPODS   REPLICAS   AGE
     kafka     StatefulSet/kafka   3% / 60%          3         8         1          1m
-    {{< / highlight >}}
+  ```
 
 Happy **Autoscaling!**

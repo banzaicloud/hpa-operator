@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
         - name: hpa-operator
-          image: banzaicloud/hpa-operator:latest
+          image: banzaicloud/hpa-operator:vdev
           command:
           - hpa-operator
           imagePullPolicy: Always

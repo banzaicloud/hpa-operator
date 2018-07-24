@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"strconv"
 	"strings"
 )
@@ -28,16 +29,16 @@ type Handler struct {
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	switch o := event.Object.(type) {
 	case *appsv1.Deployment:
-		return handleReplicaController(event.Deleted, o.Name, o.Namespace, o.APIVersion, o.Kind, o.Annotations, o.Spec.Template.Annotations)
+		return handleReplicaController(event.Deleted, o, o.GroupVersionKind(), o.Spec.Template.Annotations)
 	case *appsv1.StatefulSet:
-		return handleReplicaController(event.Deleted, o.Name, o.Namespace, o.APIVersion, o.Kind, o.Annotations, o.Spec.Template.Annotations)
+		return handleReplicaController(event.Deleted, o, o.GroupVersionKind(), o.Spec.Template.Annotations)
 	}
 	return nil
 }
 
-func handleReplicaController(deleted bool, name string, namespace string, apiVersion string, kind string, controllerAnnotations map[string]string, podAnnotations map[string]string) error {
-	logrus.Infof("handle  : %v", name)
-	annotations := controllerAnnotations
+func handleReplicaController(deleted bool, o metav1.Object, gvk schema.GroupVersionKind, podAnnotations map[string]string) error {
+	logrus.Infof("handle  : %v", o.GetName())
+	annotations := o.GetAnnotations()
 	if !checkAutoscaleAnnotationIsPresent(annotations) {
 		annotations = podAnnotations
 		if !checkAutoscaleAnnotationIsPresent(annotations) {
@@ -47,7 +48,7 @@ func handleReplicaController(deleted bool, name string, namespace string, apiVer
 			logrus.Infof("Autoscale annotations found on Pod")
 		}
 	} else {
-		logrus.Infof("Autoscale annotations found on %v", kind)
+		logrus.Infof("Autoscale annotations found on %v", gvk.Kind)
 	}
 
 	hpa := &v2beta1.HorizontalPodAutoscaler{
@@ -56,8 +57,8 @@ func handleReplicaController(deleted bool, name string, namespace string, apiVer
 			APIVersion: "autoscaling/v2beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      o.GetName(),
+			Namespace: o.GetNamespace(),
 		},
 	}
 	exists := true
@@ -76,7 +77,7 @@ func handleReplicaController(deleted bool, name string, namespace string, apiVer
 			}
 		} else {
 			logrus.Infof("HorizontalPodAutoscaler found, will be updated")
-			hpa := createHorizontalPodAutoscaler(name, namespace, apiVersion, kind, annotations)
+			hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
 			if hpa == nil {
 				return nil
 			}
@@ -88,7 +89,7 @@ func handleReplicaController(deleted bool, name string, namespace string, apiVer
 		}
 	} else {
 		logrus.Infof("HorizontalPodAutoscaler doesn't exist will be created")
-		hpa := createHorizontalPodAutoscaler(name, namespace, apiVersion, kind, annotations)
+		hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
 		if hpa == nil {
 			return nil
 		}
@@ -208,24 +209,24 @@ func addPodMetrics(annotations map[string]string, annotationPrefix string, deplo
 	return metrics
 }
 
-func createHorizontalPodAutoscaler(name string, namespace string, apiVersion string, kind string, annotations map[string]string) *v2beta1.HorizontalPodAutoscaler {
+func createHorizontalPodAutoscaler(o metav1.Object, gvk schema.GroupVersionKind, annotations map[string]string) *v2beta1.HorizontalPodAutoscaler {
 
-	minReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+"/minReplicas", name)
+	minReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+"/minReplicas", o.GetName())
 	if err != nil {
 		logrus.Errorf("Invalid annotation: %v", err.Error())
 		return nil
 	}
 
-	maxReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+"/maxReplicas", name)
+	maxReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+"/maxReplicas", o.GetName())
 	if err != nil {
 		logrus.Errorf("Invalid annotation: %v", err.Error())
 		return nil
 	}
 
 	metrics := make([]v2beta1.MetricSpec, 0, 4)
-	metrics = addCpuMetric(annotations, hpaAnnotationPrefix+"/cpu", name, metrics)
-	metrics = addMemoryMetric(annotations, hpaAnnotationPrefix+"/memory", name, metrics)
-	metrics = addPodMetrics(annotations, hpaAnnotationPrefix+".pod", name, metrics)
+	metrics = addCpuMetric(annotations, hpaAnnotationPrefix+"/cpu", o.GetName(), metrics)
+	metrics = addMemoryMetric(annotations, hpaAnnotationPrefix+"/memory", o.GetName(), metrics)
+	metrics = addPodMetrics(annotations, hpaAnnotationPrefix+".pod", o.GetName(), metrics)
 
 	logrus.Info("number of metrics: ", len(metrics))
 	if len(metrics) == 0 {
@@ -239,22 +240,17 @@ func createHorizontalPodAutoscaler(name string, namespace string, apiVersion str
 			APIVersion: "autoscaling/v2beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-
-			//OwnerReferences: []metav1.OwnerReference{
-			//	*metav1.NewControllerRef(deployment, schema.GroupVersionKind{
-			//		Group:   v1alpha1.SchemeGroupVersion.Group,
-			//		Version: v1alpha1.SchemeGroupVersion.Version,
-			//		Kind:    "Deployment",
-			//	}),
-			//},
+			Name:      o.GetName(),
+			Namespace: o.GetNamespace(),
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(o, gvk),
+			},
 		},
 		Spec: v2beta1.HorizontalPodAutoscalerSpec{
 			ScaleTargetRef: v2beta1.CrossVersionObjectReference{
-				APIVersion: apiVersion,
-				Kind:       kind,
-				Name:       name,
+				APIVersion: gvk.GroupVersion().String(),
+				Kind:       gvk.Kind,
+				Name:       o.GetName(),
 			},
 			MinReplicas: &minReplicas,
 			MaxReplicas: maxReplicas,

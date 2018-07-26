@@ -21,8 +21,8 @@ func printVersion() {
 func main() {
 	printVersion()
 	namespace := os.Getenv("OPERATOR_NAMESPACE")
-	sdk.Watch("apps/v1", "Deployment", namespace, 5)
-	sdk.Watch("apps/v1", "StatefulSet", namespace, 5)
+	sdk.Watch("apps/v1", "Deployment", namespace, 0)
+	sdk.Watch("apps/v1", "StatefulSet", namespace, 0)
 	sdk.Handle(stub.NewHandler())
 	sdk.Run(context.TODO())
 }

@@ -12,18 +12,33 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-const hpaAnnotationPrefix = "autoscale"
+const hpaAnnotationPrefix = "hpa.autoscaling.banzaicloud.io"
+
+const cpuAnnotationPrefix = "cpu"
+const memoryAnnotationPrefix = "memory"
+const podAnnotationPrefix = "pod"
+
+const targetAverageUtilization = "targetAverageUtilization"
+const targetAverageValue = "targetAverageValue"
+const annotationDomainSeparator = "/"
+const annotationSubDomainSeparator = "."
+
+const annotationRegExpString = "(" + cpuAnnotationPrefix + "|" + memoryAnnotationPrefix + "|" + podAnnotationPrefix + ")?(\\.)?hpa\\.autoscaling\\.banzaicloud\\.io\\/[a-zA-Z]+"
 
 func NewHandler() sdk.Handler {
-	return &Handler{}
+	r, _ := regexp.Compile(annotationRegExpString)
+	return &Handler{
+		annotationRegExp: r,
+	}
 }
 
 type Handler struct {
-	// Fill me
+	annotationRegExp *regexp.Regexp
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
@@ -32,19 +47,19 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	}
 	switch o := event.Object.(type) {
 	case *appsv1.Deployment:
-		return handleReplicaController(o, o.GroupVersionKind(), o.Spec.Template.Annotations)
+		return h.handleReplicaController(o, o.GroupVersionKind(), o.Spec.Template.Annotations)
 	case *appsv1.StatefulSet:
-		return handleReplicaController(o, o.GroupVersionKind(), o.Spec.Template.Annotations)
+		return h.handleReplicaController(o, o.GroupVersionKind(), o.Spec.Template.Annotations)
 	}
 	return nil
 }
 
-func handleReplicaController(o metav1.Object, gvk schema.GroupVersionKind, podAnnotations map[string]string) error {
+func (h *Handler) handleReplicaController(o metav1.Object, gvk schema.GroupVersionKind, podAnnotations map[string]string) error {
 	logrus.Infof("handle  : %v", o.GetName())
 	annotations := o.GetAnnotations()
-	if !checkAutoscaleAnnotationIsPresent(annotations) {
+	if !h.checkAutoscaleAnnotationIsPresent(annotations) {
 		annotations = podAnnotations
-		if !checkAutoscaleAnnotationIsPresent(annotations) {
+		if !h.checkAutoscaleAnnotationIsPresent(annotations) {
 			logrus.Infof("Autoscale annotations not found")
 			return nil
 		} else {
@@ -97,9 +112,9 @@ func handleReplicaController(o metav1.Object, gvk schema.GroupVersionKind, podAn
 	return nil
 }
 
-func checkAutoscaleAnnotationIsPresent(annotations map[string]string) bool {
+func (h *Handler) checkAutoscaleAnnotationIsPresent(annotations map[string]string) bool {
 	for key, _ := range annotations {
-		if strings.HasPrefix(key, hpaAnnotationPrefix) {
+		if h.annotationRegExp.MatchString(key) {
 			return true
 		}
 	}
@@ -122,107 +137,136 @@ func extractAnnotationIntValue(annotations map[string]string, annotationName str
 	return value, nil
 }
 
-func addCpuMetric(annotations map[string]string, annotationName string, deploymentName string, metrics []v2beta1.MetricSpec) []v2beta1.MetricSpec {
-	strValue := annotations[annotationName]
-	if len(strValue) == 0 {
-		return metrics
+func createResourceMetric(resourceName v1.ResourceName, annotationName string, valueFormat string, annotationValue string, deploymentName string) *v2beta1.MetricSpec {
+	if len(annotationValue) == 0 {
+		logrus.Errorf("Invalid resource metric annotation: %v value for deployment %v is missing", annotationName, deploymentName)
+		return nil
 	}
-	int64Value, err := strconv.ParseInt(strValue, 10, 32)
-	if err != nil {
-		logrus.Errorf("Invalid annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
-		return metrics
-	}
-	cpuTargetValue := int32(int64Value)
-	if cpuTargetValue <= 0 || cpuTargetValue > 100 {
-		logrus.Errorf("Invalid annotation: %v value for deployment %v should be a percentage value between [1,99]", annotationName, deploymentName)
-		return metrics
+	if len(valueFormat) == 0 {
+		logrus.Errorf("Invalid resource metric annotation: %v value format for deployment %v is missing", annotationName, deploymentName)
+		return nil
 	}
 
-	if cpuTargetValue > 0 {
-		logrus.Info("add cpu")
-		return append(metrics, v2beta1.MetricSpec{
-			Type: v2beta1.ResourceMetricSourceType,
-			Resource: &v2beta1.ResourceMetricSource{
-				Name: v1.ResourceCPU,
-				TargetAverageUtilization: &cpuTargetValue,
-			},
-		})
+	switch valueFormat {
+	case targetAverageUtilization:
+		int64Value, err := strconv.ParseInt(annotationValue, 10, 32)
+		if err != nil {
+			logrus.Errorf("Invalid resource metric annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
+			return nil
+		}
+		targetValue := int32(int64Value)
+		if targetValue <= 0 || targetValue > 100 {
+			logrus.Errorf("Invalid resource metric annotation: %v value for deployment %v should be a percentage value between [1,99]", annotationName, deploymentName)
+			return nil
+		}
+
+		if targetValue > 0 {
+			return &v2beta1.MetricSpec{
+				Type: v2beta1.ResourceMetricSourceType,
+				Resource: &v2beta1.ResourceMetricSource{
+					Name: resourceName,
+					TargetAverageUtilization: &targetValue,
+				},
+			}
+		}
+
+	case targetAverageValue:
+		targetValue, err := resource.ParseQuantity(annotationValue)
+		if err != nil {
+			logrus.Errorf("Invalid resource metric annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
+			return nil
+		} else {
+			return &v2beta1.MetricSpec{
+				Type: v2beta1.ResourceMetricSourceType,
+				Resource: &v2beta1.ResourceMetricSource{
+					Name:               resourceName,
+					TargetAverageValue: &targetValue,
+				},
+			}
+		}
+	default:
+		logrus.Warnf("Invalid resource metric valueFormat: %v for deployment %v", valueFormat, deploymentName)
 	}
-	return metrics
+
+	return nil
 }
 
-func addMemoryMetric(annotations map[string]string, annotationName string, deploymentName string, metrics []v2beta1.MetricSpec) []v2beta1.MetricSpec {
-	memoryTargetValueStr := annotations[annotationName]
-	if len(memoryTargetValueStr) == 0 {
-		return metrics
+func createPodMetrics(annotationName string, metricName string, annotationValue string, deploymentName string) *v2beta1.MetricSpec {
+
+	if len(metricName) == 0 {
+		logrus.Errorf("Invalid pod metric annotation: %v for deployment %v", annotationName, deploymentName)
+		return nil
+	}
+	logrus.Infof("pod metric %v: %v", metricName, annotationValue)
+
+	if len(annotationValue) == 0 {
+		logrus.Errorf("Invalid pod metric annotation: %v value for deployment %v is missing", annotationName, deploymentName)
+		return nil
 	}
 
-	memoryTargetValue, err := resource.ParseQuantity(memoryTargetValueStr)
+	targetAverageValue, err := resource.ParseQuantity(annotationValue)
 	if err != nil {
-		logrus.Errorf("Invalid annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
-		return metrics
+		logrus.Errorf("Invalid pod metric annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
+		return nil
 	} else {
-		return append(metrics, v2beta1.MetricSpec{
-			Type: v2beta1.ResourceMetricSourceType,
-			Resource: &v2beta1.ResourceMetricSource{
-				Name:               v1.ResourceMemory,
-				TargetAverageValue: &memoryTargetValue,
+		return &v2beta1.MetricSpec{
+			Type: v2beta1.PodsMetricSourceType,
+			Pods: &v2beta1.PodsMetricSource{
+				MetricName:         metricName,
+				TargetAverageValue: targetAverageValue,
 			},
-		})
-	}
-	return metrics
-}
-
-func addPodMetrics(annotations map[string]string, annotationPrefix string, deploymentName string, metrics []v2beta1.MetricSpec) []v2beta1.MetricSpec {
-
-	for metricKey, metricValue := range annotations {
-		if strings.HasPrefix(metricKey, annotationPrefix) {
-			metricName := metricKey[len(annotationPrefix)+1:]
-			logrus.Infof("pod metric %v: %v", metricName, metricValue)
-
-			if len(metricValue) == 0 {
-				logrus.Errorf("Invalid annotation: %v value for deployment %v is missing", metricKey, deploymentName)
-				continue
-			}
-
-			targetAverageValue, err := resource.ParseQuantity(metricValue)
-			if err != nil {
-				logrus.Errorf("Invalid annotation: %v value for deployment %v is invalid: %v", metricKey, deploymentName, err.Error())
-				continue
-			} else {
-				metrics = append(metrics, v2beta1.MetricSpec{
-					Type: v2beta1.PodsMetricSourceType,
-					Pods: &v2beta1.PodsMetricSource{
-						MetricName:         metricName,
-						TargetAverageValue: targetAverageValue,
-					},
-				})
-			}
-
 		}
 	}
+}
+
+func parseMetrics(annotations map[string]string, deploymentName string) []v2beta1.MetricSpec {
+
+	metrics := make([]v2beta1.MetricSpec, 0, 4)
+
+	for metricKey, metricValue := range annotations {
+		keys := strings.Split(metricKey, annotationDomainSeparator)
+		if len(keys) != 2 {
+			logrus.Errorf("Metric annotation for deployment %v is invalid: metricKey", deploymentName, metricKey)
+			return metrics
+		}
+		metricSubDomains := strings.Split(keys[0], annotationSubDomainSeparator)
+		if len(metricSubDomains) < 2 {
+			logrus.Errorf("Metric annotation for deployment %v is invalid: metricKey", deploymentName, metricKey)
+			return metrics
+		}
+		var metric *v2beta1.MetricSpec
+		switch metricSubDomains[0] {
+		case cpuAnnotationPrefix:
+			metric = createResourceMetric(v1.ResourceCPU, metricKey, keys[1], metricValue, deploymentName)
+		case memoryAnnotationPrefix:
+			metric = createResourceMetric(v1.ResourceMemory, metricKey, keys[1], metricValue, deploymentName)
+		case podAnnotationPrefix:
+			metric = createPodMetrics(metricKey, keys[1], metricValue, deploymentName)
+		}
+		if metric != nil {
+			metrics = append(metrics, *metric)
+		}
+
+	}
+
 	return metrics
 }
 
 func createHorizontalPodAutoscaler(o metav1.Object, gvk schema.GroupVersionKind, annotations map[string]string) *v2beta1.HorizontalPodAutoscaler {
 
-	minReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+"/minReplicas", o.GetName())
+	minReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+annotationDomainSeparator+"minReplicas", o.GetName())
 	if err != nil {
 		logrus.Errorf("Invalid annotation: %v", err.Error())
 		return nil
 	}
 
-	maxReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+"/maxReplicas", o.GetName())
+	maxReplicas, err := extractAnnotationIntValue(annotations, hpaAnnotationPrefix+annotationDomainSeparator+"maxReplicas", o.GetName())
 	if err != nil {
 		logrus.Errorf("Invalid annotation: %v", err.Error())
 		return nil
 	}
 
-	metrics := make([]v2beta1.MetricSpec, 0, 4)
-	metrics = addCpuMetric(annotations, hpaAnnotationPrefix+"/cpu", o.GetName(), metrics)
-	metrics = addMemoryMetric(annotations, hpaAnnotationPrefix+"/memory", o.GetName(), metrics)
-	metrics = addPodMetrics(annotations, hpaAnnotationPrefix+".pod", o.GetName(), metrics)
-
+	metrics := parseMetrics(annotations, o.GetName())
 	logrus.Info("number of metrics: ", len(metrics))
 	if len(metrics) == 0 {
 		logrus.Error("No metrics configured")

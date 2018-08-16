@@ -20,9 +20,9 @@ Autoscale annotations can be placed:
     name: example
     labels:
     annotations:
-      autoscale/minReplicas: "1"
-      autoscale/maxReplicas: "3"
-      autoscale/cpu: "70"
+      hpa.autoscaling.banzaicloud.io/minReplicas: "1"
+      hpa.autoscaling.banzaicloud.io/maxReplicas: "3"
+      cpu.hpa.autoscaling.banzaicloud.io/targetAverageUtilization: "70"
   ```
 
 - or on `spec.template.metadata.annotations`:
@@ -38,9 +38,9 @@ Autoscale annotations can be placed:
         labels:
           ...
         annotations:
-          autoscale/minReplicas: "1"
-          autoscale/maxReplicas: "3"
-          autoscale/cpu: "70"
+            hpa.autoscaling.banzaicloud.io/minReplicas: "1"
+            hpa.autoscaling.banzaicloud.io/maxReplicas: "3"
+            cpu.hpa.autoscaling.banzaicloud.io/targetAverageUtilization: "70"
   ```  
 
 The [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator) takes care of creating, deleting, updating HPA, with other words keeping in sync with your deployment annotations.
@@ -50,11 +50,13 @@ The [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-oper
 All annotations must be prefixed with `autoscale`. It is required to specify minReplicas/maxReplicas and at least one metric to be used for autoscale. You can add *Resource* type metrics for cpu & memory and *Pods* type metrics.
 Let's see what kind of annotations can be used to specify metrics:
 
-- ``autoscale/cpu: "{targetAverageUtilizationPercentage}"`` - adds a Resource type metric for cpu with targetAverageUtilization set as specified, where targetAverageUtilizationPercentage should be an int value between [1-100]
+- ``cpu.hpa.autoscaling.banzaicloud.io/targetAverageUtilization: "{targetAverageUtilizationPercentage}"`` - adds a Resource type metric for cpu with targetAverageUtilizationPercentage set as specified, where targetAverageUtilizationPercentage should be an int value between [1-100]
+
+- ``cpu.hpa.autoscaling.banzaicloud.io/targetAverageValue: "{targetAverageValue}"`` - adds a Resource type metric for cpu with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
 - ``autoscale/memory: "{targetAverageValue}"`` - adds a Resource type metric for memory with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
-- ``autoscale.pod/custom_metric_name: "{targetAverageValue}"`` - adds a Pods type metric with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
+- ``pod.hpa.autoscaling.banzaicloud.io/custom_metric_name: "{targetAverageValue}"`` - adds a Pods type metric with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
 > To use custom metrics from *Prometheus*, you have to deploy `Prometheus Adapter` and `Metrics Server`, explained in detail in our previous post about [using HPA with custom metrics](https://banzaicloud.com/blog/k8s-horizontal-pod-autoscaler/)
 
@@ -75,9 +77,9 @@ Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud
     {
         "statefullset": {
            "annotations": {
-               "autoscale/minReplicas": "3",
-               "autoscale/maxReplicas": "8",
-               "autoscale/cpu": "60"
+                hpa.autoscaling.banzaicloud.io/minReplicas: "3"
+                hpa.autoscaling.banzaicloud.io/maxReplicas: "8"
+                cpu.hpa.autoscaling.banzaicloud.io/targetAverageeUtilization: "60"
            }
         }
     }

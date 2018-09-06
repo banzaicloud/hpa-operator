@@ -57,15 +57,17 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 func (h *Handler) handleReplicaController(o metav1.Object, gvk schema.GroupVersionKind, podAnnotations map[string]string) error {
 	logrus.Infof("handle  : %v", o.GetName())
 	annotations := o.GetAnnotations()
+	hpaAnnotationsFound := false
 	if !h.checkAutoscaleAnnotationIsPresent(annotations) {
 		annotations = podAnnotations
 		if !h.checkAutoscaleAnnotationIsPresent(annotations) {
 			logrus.Infof("Autoscale annotations not found")
-			return nil
 		} else {
+			hpaAnnotationsFound = true
 			logrus.Infof("Autoscale annotations found on Pod")
 		}
 	} else {
+		hpaAnnotationsFound = true
 		logrus.Infof("Autoscale annotations found on %v", gvk.Kind)
 	}
 
@@ -86,18 +88,28 @@ func (h *Handler) handleReplicaController(o metav1.Object, gvk schema.GroupVersi
 	}
 
 	if exists {
-		logrus.Infof("HorizontalPodAutoscaler found, will be updated")
-		hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
-		if hpa == nil {
-			return nil
-		}
-		err := sdk.Update(hpa)
-		if err != nil && !errors.IsAlreadyExists(err) {
-			logrus.Errorf("Failed to update HPA: %v", err)
-			return err
+
+		if hpaAnnotationsFound {
+			logrus.Infof("HorizontalPodAutoscaler found, will be updated")
+			hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
+			if hpa == nil {
+				return nil
+			}
+			err := sdk.Update(hpa)
+			if err != nil && !errors.IsAlreadyExists(err) {
+				logrus.Errorf("Failed to update HPA: %v", err)
+				return err
+			}
+		} else {
+			logrus.Infof("HorizontalPodAutoscaler found, will be deleted")
+			err := sdk.Delete(hpa)
+			if err != nil {
+				logrus.Errorf("Failed to delete HPA : %v", err)
+				return err
+			}
 		}
 
-	} else {
+	} else if hpaAnnotationsFound {
 		logrus.Infof("HorizontalPodAutoscaler doesn't exist will be created")
 		hpa := createHorizontalPodAutoscaler(o, gvk, annotations)
 		if hpa == nil {

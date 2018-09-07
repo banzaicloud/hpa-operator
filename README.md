@@ -54,7 +54,9 @@ Let's see what kind of annotations can be used to specify metrics:
 
 - ``cpu.hpa.autoscaling.banzaicloud.io/targetAverageValue: "{targetAverageValue}"`` - adds a Resource type metric for cpu with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
-- ``autoscale/memory: "{targetAverageValue}"`` - adds a Resource type metric for memory with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
+- ``memory.hpa.autoscaling.banzaicloud.io/targetAverageUtilization: "{targetAverageUtilizationPercentage}"`` - adds a Resource type metric for memory with targetAverageUtilizationPercentage set as specified, where targetAverageUtilizationPercentage should be an int value between [1-100]
+
+- ``memory.hpa.autoscaling.banzaicloud.io/targetAverageValue: "{targetAverageValue}"`` - adds a Resource type metric for memory with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
 - ``pod.hpa.autoscaling.banzaicloud.io/custom_metric_name: "{targetAverageValue}"`` - adds a Pods type metric with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 

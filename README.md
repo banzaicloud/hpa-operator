@@ -81,7 +81,7 @@ Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud
            "annotations": {
                 hpa.autoscaling.banzaicloud.io/minReplicas: "3"
                 hpa.autoscaling.banzaicloud.io/maxReplicas: "8"
-                cpu.hpa.autoscaling.banzaicloud.io/targetAverageeUtilization: "60"
+                cpu.hpa.autoscaling.banzaicloud.io/targetAverageUtilization: "60"
            }
         }
     }

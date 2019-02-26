@@ -54,10 +54,10 @@ func TestCreateHPAWithResourceMetrics(t *testing.T) {
 func TestCreateHPAWithPodMetrics(t *testing.T) {
 
 	annotations := map[string]string{
-		"hpa.autoscaling.banzaicloud.io/minReplicas":               "1",
-		"hpa.autoscaling.banzaicloud.io/maxReplicas":               "3",
-		"pod.hpa.autoscaling.banzaicloud.io/customMetricIncorrect": "1024xMi",
-		"pod.hpa.autoscaling.banzaicloud.io/customMetricCorrect":   "1024Mi",
+		"hpa.autoscaling.banzaicloud.io/minReplicas":                                "1",
+		"hpa.autoscaling.banzaicloud.io/maxReplicas":                                "3",
+		"prometheus.customMetric.hpa.autoscaling.banzaicloud.io/query":              "{prometheusQuery}",
+		"prometheus.customMetric.hpa.autoscaling.banzaicloud.io/targetAverageValue": "1024Mi",
 	}
 
 	o := &appsv1.Deployment{
@@ -83,12 +83,20 @@ func TestCreateHPAWithPodMetrics(t *testing.T) {
 		return
 	}
 
+	if _, ok := hpa.Annotations["metric-config.object.customMetric.prometheus/query"]; !ok {
+		t.Errorf("Hpa query annotation is missing for custom metric!")
+	}
+
+	if _, ok := hpa.Annotations["metric-config.object.customMetric.prometheus/per-replica"]; !ok {
+		t.Errorf("Hpa per-replica annotation is missing for custom metric!")
+	}
+
 	for _, metric := range hpa.Spec.Metrics {
-		if metric.Type != v2beta1.PodsMetricSourceType {
+		if metric.Type != v2beta1.ObjectMetricSourceType {
 			t.Errorf("Metric type expected: %v actual: %v", v2beta1.PodsMetricSourceType, metric.Type)
 		}
-		if metric.Pods.MetricName != "customMetricCorrect" {
-			t.Errorf("Metric name expected: %v actual: %v", "customMetricCorrect", metric.Resource.Name)
+		if metric.Object.MetricName != "customMetric" {
+			t.Errorf("Metric name expected: %v actual: %v", "customMetric", metric.Object.MetricName)
 		}
 	}
 

@@ -47,7 +47,7 @@ The [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-oper
 
 ### Annotations explained
 
-All annotations must be prefixed with `autoscale`. It is required to specify minReplicas/maxReplicas and at least one metric to be used for autoscale. You can add *Resource* type metrics for cpu & memory and *Pods* type metrics.
+All annotations must contain the `autoscaling.banzaicloud.io` prefix. It is required to specify minReplicas/maxReplicas and at least one metric to be used for autoscale. You can add *Resource* type metrics for cpu & memory and *Pods* type metrics.
 Let's see what kind of annotations can be used to specify metrics:
 
 - ``cpu.hpa.autoscaling.banzaicloud.io/targetAverageUtilization: "{targetAverageUtilizationPercentage}"`` - adds a Resource type metric for cpu with targetAverageUtilizationPercentage set as specified, where targetAverageUtilizationPercentage should be an int value between [1-100]
@@ -58,9 +58,24 @@ Let's see what kind of annotations can be used to specify metrics:
 
 - ``memory.hpa.autoscaling.banzaicloud.io/targetAverageValue: "{targetAverageValue}"`` - adds a Resource type metric for memory with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
-- ``pod.hpa.autoscaling.banzaicloud.io/custom_metric_name: "{targetAverageValue}"`` - adds a Pods type metric with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
+- ``pod.hpa.autoscaling.banzaicloud.io/customMetricName: "{targetAverageValue}"`` - adds a Pods type metric with targetAverageValue set as specified, where targetAverageValue is a [Quantity](https://godoc.org/k8s.io/apimachinery/pkg/api/resource#Quantity).
 
 > To use custom metrics from *Prometheus*, you have to deploy `Prometheus Adapter` and `Metrics Server`, explained in detail in our previous post about [using HPA with custom metrics](https://banzaicloud.com/blog/k8s-horizontal-pod-autoscaler/)
+
+#### Custom metrics from version 0.1.5
+
+From version 0.1.5 we have removed support for *Pod* type custom metrics and added support for Prometheus backed custom metrics exposed by [Kube Metrics Adapter](https://github.com/zalando-incubator/kube-metrics-adapter).
+To setup HPA based on Prometheus one has to setup the following deployment annotations:
+
+``
+prometheus.customMetricName.hpa.autoscaling.banzaicloud.io/query: "sum({kubernetes_pod_name=~"^YOUR_POD_NAME.*",__name__=~"YOUR_PROMETHUES_METRICNAME"})"
+prometheus.customMetricName.hpa.autoscaling.banzaicloud.io/targetValue: "{targetValue}"
+prometheus.customMetricName.hpa.autoscaling.banzaicloud.io/targetAverageValue: "{targetAverageValue}"
+``
+
+The query should be a syntactically correct Prometheus query. Pay attention to select only metrics related to your *Deployment* / *Pod* / *Service*. 
+You should specify either targetValue or targetAverageValue, in which case metric value is averaged with current replica count.
+
 
 ### Quick usage example
 

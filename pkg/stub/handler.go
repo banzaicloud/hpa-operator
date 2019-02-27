@@ -3,6 +3,7 @@ package stub
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,14 +22,14 @@ const hpaAnnotationPrefix = "hpa.autoscaling.banzaicloud.io"
 
 const cpuAnnotationPrefix = "cpu"
 const memoryAnnotationPrefix = "memory"
-const podAnnotationPrefix = "pod"
+const prometheusAnnotationPrefix = "prometheus"
 
 const targetAverageUtilization = "targetAverageUtilization"
 const targetAverageValue = "targetAverageValue"
 const annotationDomainSeparator = "/"
 const annotationSubDomainSeparator = "."
 
-const annotationRegExpString = "(" + cpuAnnotationPrefix + "|" + memoryAnnotationPrefix + "|" + podAnnotationPrefix + ")?(\\.)?hpa\\.autoscaling\\.banzaicloud\\.io\\/[a-zA-Z]+"
+const annotationRegExpString = "[a-zA-Z\\.]+hpa\\.autoscaling\\.banzaicloud\\.io\\/[a-zA-Z\\.]+"
 
 func NewHandler() sdk.Handler {
 	r, _ := regexp.Compile(annotationRegExpString)
@@ -203,37 +204,63 @@ func createResourceMetric(resourceName v1.ResourceName, annotationName string, v
 	return nil
 }
 
-func createPodMetrics(annotationName string, metricName string, annotationValue string, deploymentName string) *v2beta1.MetricSpec {
+func createCustomMetrics(hpa *v2beta1.HorizontalPodAutoscaler, metricName string, annotations map[string]string, deploymentName string) *v2beta1.MetricSpec {
 
-	if len(metricName) == 0 {
-		logrus.Errorf("Invalid pod metric annotation: %v for deployment %v", annotationName, deploymentName)
+	logrus.Infof("setup custom prometheus metric: %v", metricName)
+
+	queryKey := fmt.Sprintf("prometheus.%v.%v/query", metricName, hpaAnnotationPrefix)
+	query, ok := annotations[queryKey]
+	if !ok {
+		logrus.Errorf("query is missing for custom metric: %s, deployment %v", metricName, deploymentName)
 		return nil
 	}
-	logrus.Infof("pod metric %v: %v", metricName, annotationValue)
-
-	if len(annotationValue) == 0 {
-		logrus.Errorf("Invalid pod metric annotation: %v value for deployment %v is missing", annotationName, deploymentName)
-		return nil
+	if len(hpa.Annotations) == 0 {
+		hpa.Annotations = make(map[string]string)
 	}
+	hpa.Annotations[fmt.Sprintf("metric-config.object.%s.prometheus/query", metricName)] = query
 
-	targetAverageValue, err := resource.ParseQuantity(annotationValue)
-	if err != nil {
-		logrus.Errorf("Invalid pod metric annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
-		return nil
-	} else {
-		return &v2beta1.MetricSpec{
-			Type: v2beta1.PodsMetricSourceType,
-			Pods: &v2beta1.PodsMetricSource{
-				MetricName:         metricName,
-				TargetAverageValue: targetAverageValue,
-			},
+	perReplica := false
+	targetValueKey := fmt.Sprintf("prometheus.%v.%v/targetValue", metricName, hpaAnnotationPrefix)
+	targetAverageValueKey := fmt.Sprintf("prometheus.%v.%v/targetAverageValue", metricName, hpaAnnotationPrefix)
+
+	targetValueStr, ok := annotations[targetValueKey]
+	if !ok {
+		targetValueStr, ok = annotations[targetAverageValueKey]
+		perReplica = true
+		if !ok {
+			logrus.Errorf("either targetValue or targetAverageValue is required for custom metric: %s, deployment: %v", metricName, deploymentName)
+			return nil
 		}
+	}
+
+	targetValue, err := resource.ParseQuantity(targetValueStr)
+	if err != nil {
+		logrus.Errorf("targetValue / targetAverageValue is invalid in custom metric: %s, deployment: %s (%s)", metricName, deploymentName, err.Error())
+		return nil
+	}
+
+	if perReplica {
+		hpa.Annotations[fmt.Sprintf("metric-config.object.%s.prometheus/per-replica", metricName)] = "true"
+	}
+
+	return &v2beta1.MetricSpec{
+		Type: v2beta1.ObjectMetricSourceType,
+		Object: &v2beta1.ObjectMetricSource{
+			MetricName:  metricName,
+			TargetValue: targetValue,
+			Target: v2beta1.CrossVersionObjectReference{
+				Kind:       "Pod",
+				Name:       fmt.Sprintf("%s-%s", deploymentName, metricName),
+				APIVersion: "v1",
+			},
+		},
 	}
 }
 
-func parseMetrics(annotations map[string]string, deploymentName string) []v2beta1.MetricSpec {
+func parseMetrics(hpa *v2beta1.HorizontalPodAutoscaler, annotations map[string]string, deploymentName string) []v2beta1.MetricSpec {
 
 	metrics := make([]v2beta1.MetricSpec, 0, 4)
+	customMetricsMap := make(map[string]*v2beta1.MetricSpec)
 
 	for metricKey, metricValue := range annotations {
 		keys := strings.Split(metricKey, annotationDomainSeparator)
@@ -252,8 +279,12 @@ func parseMetrics(annotations map[string]string, deploymentName string) []v2beta
 			metric = createResourceMetric(v1.ResourceCPU, metricKey, keys[1], metricValue, deploymentName)
 		case memoryAnnotationPrefix:
 			metric = createResourceMetric(v1.ResourceMemory, metricKey, keys[1], metricValue, deploymentName)
-		case podAnnotationPrefix:
-			metric = createPodMetrics(metricKey, keys[1], metricValue, deploymentName)
+		case prometheusAnnotationPrefix:
+			metricName := metricSubDomains[1]
+			if _, ok := customMetricsMap[metricName]; !ok {
+				metric = createCustomMetrics(hpa, metricName, annotations, deploymentName)
+				customMetricsMap[metricName] = metric
+			}
 		}
 		if metric != nil {
 			metrics = append(metrics, *metric)
@@ -278,14 +309,7 @@ func createHorizontalPodAutoscaler(o metav1.Object, gvk schema.GroupVersionKind,
 		return nil
 	}
 
-	metrics := parseMetrics(annotations, o.GetName())
-	logrus.Info("number of metrics: ", len(metrics))
-	if len(metrics) == 0 {
-		logrus.Error("No metrics configured")
-		return nil
-	}
-
-	return &v2beta1.HorizontalPodAutoscaler{
+	hpa := &v2beta1.HorizontalPodAutoscaler{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "HorizontalPodAutoscaler",
 			APIVersion: "autoscaling/v2beta1",
@@ -305,7 +329,17 @@ func createHorizontalPodAutoscaler(o metav1.Object, gvk schema.GroupVersionKind,
 			},
 			MinReplicas: &minReplicas,
 			MaxReplicas: maxReplicas,
-			Metrics:     metrics,
 		},
 	}
+
+	metrics := parseMetrics(hpa, annotations, o.GetName())
+	logrus.Info("number of metrics: ", len(metrics))
+	if len(metrics) == 0 {
+		logrus.Error("No metrics configured")
+		return nil
+	}
+
+	hpa.Spec.Metrics = metrics
+
+	return hpa
 }

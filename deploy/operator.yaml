@@ -1,17 +1,3 @@
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  name: apps.banzaicloud.com
-spec:
-  group: banzaicloud.com
-  names:
-    kind: App
-    listKind: AppList
-    plural: apps
-    singular: app
-  scope: Namespaced
-  version: v1alpha1
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:

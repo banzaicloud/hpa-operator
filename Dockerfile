@@ -8,8 +8,7 @@ FROM alpine:3.6
 
 COPY --from=0 /tmp/hpa-operator /usr/local/bin/hpa-operator
 RUN apk update && apk add ca-certificates
-RUN adduser -D hpa-operator
 
-USER hpa-operator
+USER 65534:65534
 
 ENTRYPOINT ["/usr/local/bin/hpa-operator"]

@@ -83,6 +83,10 @@ func (h *Handler) handleReplicaSet(o metav1.Object, gvk schema.GroupVersionKind,
 	}
 
 	if exists {
+		if !isCreatedByHpaController(hpa, o, gvk) {
+			logrus.Infof("HorizontalPodAutoscaler is not created by us")
+			return nil
+		}
 
 		if hpaAnnotationsFound {
 			logrus.Infof("HorizontalPodAutoscaler found, will be updated")
@@ -97,6 +101,7 @@ func (h *Handler) handleReplicaSet(o metav1.Object, gvk schema.GroupVersionKind,
 			}
 		} else {
 			logrus.Infof("HorizontalPodAutoscaler found, will be deleted")
+
 			err := sdk.Delete(hpa)
 			if err != nil {
 				logrus.Errorf("Failed to delete HPA : %v", err)
@@ -117,6 +122,15 @@ func (h *Handler) handleReplicaSet(o metav1.Object, gvk schema.GroupVersionKind,
 		}
 	}
 	return nil
+}
+
+func isCreatedByHpaController(hpa *v2beta1.HorizontalPodAutoscaler, o metav1.Object, gvk schema.GroupVersionKind) bool {
+	for _, ref := range hpa.OwnerReferences {
+		if ref.Name == o.GetName() && ref.Kind == gvk.Kind {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) checkAutoscaleAnnotationIsPresent(annotations map[string]string) bool {

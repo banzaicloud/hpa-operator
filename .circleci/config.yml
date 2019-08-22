@@ -1,0 +1,27 @@
+version: 2.1
+orbs:
+  helm: banzaicloud/helm@0.0.3
+
+general:
+  branches:
+    ignore:
+      - master
+
+workflows:
+
+  helm-chart:
+    jobs:
+      - helm/lint-chart:
+          chart-path: deploy/charts/hpa-operator
+          filters:
+            tags:
+              ignore: /.*/
+
+      - helm/publish-chart:
+          context: helm
+          chart-path: deploy/charts/hpa-operator
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /chart\/hpa-operator\/\d+.\d+.\d+/

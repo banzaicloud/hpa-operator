@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  helm: banzaicloud/helm@0.0.3
+  helm: banzaicloud/helm@0.0.5
 
 general:
   branches:
@@ -12,14 +12,14 @@ workflows:
   helm-chart:
     jobs:
       - helm/lint-chart:
-          chart-path: deploy/charts/hpa-operator
+          charts-dir: deploy/charts
           filters:
             tags:
               ignore: /.*/
 
       - helm/publish-chart:
           context: helm
-          chart-path: deploy/charts/hpa-operator
+          charts-dir: deploy/charts
           filters:
             branches:
               ignore: /.*/

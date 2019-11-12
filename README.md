@@ -5,7 +5,7 @@ You may not want nor can edit a Helm chart just to add an autoscaling feature. N
 We have open sourced a [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator). This operator watches for your `Deployment` or `StatefulSet` and automatically creates an *HorizontalPodAutoscaler* resource, should you provide the correct autoscale annotations.
 
 - [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator)
-- [Horizontal Pod Autoscaler operator Helm chart](https://github.com/banzaicloud/banzai-charts/tree/master/hpa-operator)
+- [Horizontal Pod Autoscaler operator Helm chart](https://github.com/banzaicloud/hpa-operator/tree/master/deploy/charts/hpa-operator)
 
 ### Autoscale by annotations
 

@@ -2,7 +2,6 @@
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
-  creationTimestamp: null
   name: psp.hpa-operator
   annotations:
     seccomp.security.alpha.kubernetes.io/defaultProfileName:  'docker/default'

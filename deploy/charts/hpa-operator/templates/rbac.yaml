@@ -1,14 +1,14 @@
 {{ if .Values.rbac.enabled }}
-{{- $serviceName := include "hpa-operator.fullname" . -}}
-apiVersion: rbac.authorization.k8s.io/{{ required "A valid .Values.rbac.apiVersion entry required!" .Values.rbac.apiVersion }}
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ $serviceName }}
+  name: {{ template "hpa-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    app: "{{ template "hpa-operator.fullname" . }}"
-    heritage: "{{ .Release.Service }}"
-    release: "{{ .Release.Name }}"
+    app: {{ template "hpa-operator.name" . }}
+    chart: {{ template "hpa-operator.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 rules:
 - apiGroups:
   - ""
@@ -36,22 +36,23 @@ rules:
 ---
 
 kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/{{ required "A valid .Values.rbac.apiVersion entry required!" .Values.rbac.apiVersion }}
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {{ $serviceName }}
+  name: {{ template "hpa-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    app: "{{ template "hpa-operator.fullname" . }}"
-    heritage: "{{ .Release.Service }}"
-    release: "{{ .Release.Name }}"
+    app: {{ template "hpa-operator.name" . }}
+    chart: {{ template "hpa-operator.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 subjects:
 - kind: ServiceAccount
-  name: {{ $serviceName }}
+  name: {{ template "hpa-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ $serviceName }}
+  name: {{ template "hpa-operator.fullname" . }}
 
 {{ if .Values.rbac.psp.enabled }}
 ---
@@ -59,6 +60,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: psp:{{ template "hpa-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "hpa-operator.name" . }}
+    chart: {{ template "hpa-operator.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 roleRef:
   kind: Role
   apiGroup: rbac.authorization.k8s.io
@@ -72,6 +79,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: psp:{{ template "hpa-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "hpa-operator.name" . }}
+    chart: {{ template "hpa-operator.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 rules:
 - apiGroups:
   - policy

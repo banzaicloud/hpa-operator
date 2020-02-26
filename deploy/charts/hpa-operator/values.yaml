@@ -18,7 +18,6 @@ resources:
 ## Install Default RBAC roles and bindings
 rbac:
   enabled: true
-  apiVersion: v1beta1
   psp:
     enabled: false
 

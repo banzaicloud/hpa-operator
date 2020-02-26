@@ -28,7 +28,7 @@ spec:
         runAsUser: 1000
         fsGroup: 2000
 {{ if .Values.rbac.enabled }}
-      serviceAccountName: {{ template "hpa-operator.fullname" . }}
+      serviceAccountName: {{ template "hpa-operator.serviceAccountName" . }}
 {{ end }}
       containers:
       - name: {{ .Chart.Name }}

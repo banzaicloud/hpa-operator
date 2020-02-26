@@ -22,7 +22,7 @@ rbac:
   psp:
     enabled: false
 
-metricsServer:
+metrics-server:
   enabled: false
 
 ## Node selector

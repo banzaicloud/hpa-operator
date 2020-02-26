@@ -2,23 +2,27 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "hpa-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-    app: "{{ template "hpa-operator.fullname" . }}"
-    heritage: "{{ .Release.Service }}"
-    release: "{{ .Release.Name }}"
+    app: {{ template "hpa-operator.name" . }}
+    chart: {{ template "hpa-operator.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: "{{ template "hpa-operator.fullname" . }}"
+      app: {{ template "hpa-operator.name" . }}
+      chart: {{ template "hpa-operator.chart" . }}
+      release: {{ .Release.Name }}
+      heritage: {{ .Release.Service }}
   template:
     metadata:
       labels:
-        chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
-        app: {{ template "hpa-operator.fullname" . }}
-        heritage: "{{ .Release.Service }}"
-        release: "{{ .Release.Name }}"
+        app: {{ template "hpa-operator.name" . }}
+        chart: {{ template "hpa-operator.chart" . }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
 {{- with .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}

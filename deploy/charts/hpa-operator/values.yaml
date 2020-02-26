@@ -21,8 +21,6 @@ rbac:
   psp:
     enabled: false
 
-metrics-server:
-  enabled: false
 
 ## Node selector
 ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
@@ -37,3 +35,9 @@ affinity: {}
 tolerations: []
 
 podAnnotations: {}
+
+metrics-server:
+  enabled: false
+
+kube-metrics-adapter:
+  enabled: true

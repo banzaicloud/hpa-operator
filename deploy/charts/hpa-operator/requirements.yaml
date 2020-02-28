@@ -4,6 +4,6 @@ dependencies:
     repository: https://kubernetes-charts.storage.googleapis.com/
     condition: metrics-server.enabled
   - name: kube-metrics-adapter
-    version: 0.0.5
+    version: 0.1.1
     repository: https://kubernetes-charts.banzaicloud.com
     condition: kube-metrics-adapter.enabled

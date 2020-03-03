@@ -72,6 +72,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Deployment")
 		os.Exit(1)
 	}
+
+	statefulsetReconciler := controllers.NewStatefulsSetReconciler(
+		mgr.GetClient(), ctrl.Log.WithName("controllers").WithName("StatefulSet"), mgr.GetScheme(), handler)
+	if err = statefulsetReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "StatefulSet")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

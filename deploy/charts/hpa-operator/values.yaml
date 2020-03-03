@@ -45,3 +45,6 @@ metrics-server:
 
 kube-metrics-adapter:
   enabled: true
+
+monitoring:
+  enabled: false

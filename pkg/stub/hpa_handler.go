@@ -24,20 +24,20 @@ const annotationSubDomainSeparator = "."
 
 const annotationRegExpString = "[a-zA-Z\\.]+hpa\\.autoscaling\\.banzaicloud\\.io\\/[a-zA-Z\\.]+"
 
-func NewHandler(client client.Client) *Handler {
+func NewHandler(client client.Client) *HPAHandler {
 	r, _ := regexp.Compile(annotationRegExpString)
-	return &Handler{
+	return &HPAHandler{
 		annotationRegExp: r,
 		client:           client,
 	}
 }
 
-type Handler struct {
+type HPAHandler struct {
 	annotationRegExp *regexp.Regexp
 	client           client.Client
 }
 
-func (h *Handler) HandleReplicaSet(
+func (h *HPAHandler) HandleReplicaSet(
 	ctx context.Context,
 	UID types.UID,
 	name string, namespace string,
@@ -121,7 +121,7 @@ func isCreatedByHpaController(hpa *v2beta2.HorizontalPodAutoscaler, name string,
 	return false
 }
 
-func (h *Handler) checkAutoscaleAnnotationIsPresent(annotations map[string]string) bool {
+func (h *HPAHandler) checkAutoscaleAnnotationIsPresent(annotations map[string]string) bool {
 	for key, _ := range annotations {
 		if h.annotationRegExp.MatchString(key) {
 			return true

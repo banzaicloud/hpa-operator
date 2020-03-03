@@ -29,16 +29,16 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 )
 
-// DeploymentReconciler reconciles a Deployment object
-type DeploymentReconciler struct {
+// StatefulSetReconciler reconciles a StatefulSet object
+type StatefulSetReconciler struct {
 	client  client.Client
 	log     logr.Logger
 	scheme  *runtime.Scheme
 	handler *stub.HPAHandler
 }
 
-func NewDeploymentReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, handler *stub.HPAHandler) *DeploymentReconciler {
-	return &DeploymentReconciler{
+func NewStatefulsSetReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, handler *stub.HPAHandler) *StatefulSetReconciler {
+	return &StatefulSetReconciler{
 		client:  client,
 		log:     log,
 		scheme:  scheme,
@@ -49,11 +49,11 @@ func NewDeploymentReconciler(client client.Client, log logr.Logger, scheme *runt
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;update;patch
 
-func (r *DeploymentReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *StatefulSetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	_ = r.log.WithValues("deployment", req.NamespacedName)
+	_ = r.log.WithValues("statefulset", req.NamespacedName)
 
-	deployment := &appsv1.Deployment{}
+	deployment := &appsv1.StatefulSet{}
 	err := r.client.Get(ctx, req.NamespacedName, deployment)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -72,8 +72,8 @@ func (r *DeploymentReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	return ctrl.Result{}, nil
 }
 
-func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *StatefulSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&appsv1.Deployment{}).
+		For(&appsv1.StatefulSet{}).
 		Complete(r)
 }

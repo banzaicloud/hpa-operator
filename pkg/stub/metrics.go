@@ -3,13 +3,14 @@ package stub
 import (
 	stderrors "errors"
 	"fmt"
+	"k8s.io/api/autoscaling/v2beta2"
 	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func extractAnnotationIntValue(annotations map[string]string, annotationName string, deploymentName string) (int32, error) {
@@ -28,7 +29,7 @@ func extractAnnotationIntValue(annotations map[string]string, annotationName str
 	return value, nil
 }
 
-func createResourceMetric(resourceName v1.ResourceName, annotationName string, valueFormat string, annotationValue string, deploymentName string) *v2beta1.MetricSpec {
+func createResourceMetric(resourceName v1.ResourceName, annotationName string, valueFormat string, annotationValue string, deploymentName string) *v2beta2.MetricSpec {
 	if len(annotationValue) == 0 {
 		logrus.Errorf("Invalid resource metric annotation: %v value for deployment %v is missing", annotationName, deploymentName)
 		return nil
@@ -52,11 +53,14 @@ func createResourceMetric(resourceName v1.ResourceName, annotationName string, v
 		}
 
 		if targetValue > 0 {
-			return &v2beta1.MetricSpec{
-				Type: v2beta1.ResourceMetricSourceType,
-				Resource: &v2beta1.ResourceMetricSource{
+			return &v2beta2.MetricSpec{
+				Type: v2beta2.ResourceMetricSourceType,
+				Resource: &v2beta2.ResourceMetricSource{
 					Name: resourceName,
-					TargetAverageUtilization: &targetValue,
+					Target: v2beta2.MetricTarget{
+						Type:               v2beta2.UtilizationMetricType,
+						AverageUtilization: &targetValue,
+					},
 				},
 			}
 		}
@@ -67,11 +71,14 @@ func createResourceMetric(resourceName v1.ResourceName, annotationName string, v
 			logrus.Errorf("Invalid resource metric annotation: %v value for deployment %v is invalid: %v", annotationName, deploymentName, err.Error())
 			return nil
 		} else {
-			return &v2beta1.MetricSpec{
-				Type: v2beta1.ResourceMetricSourceType,
-				Resource: &v2beta1.ResourceMetricSource{
-					Name:               resourceName,
-					TargetAverageValue: &targetValue,
+			return &v2beta2.MetricSpec{
+				Type: v2beta2.ResourceMetricSourceType,
+				Resource: &v2beta2.ResourceMetricSource{
+					Name: resourceName,
+					Target: v2beta2.MetricTarget{
+						Type:         v2beta2.AverageValueMetricType,
+						AverageValue: &targetValue,
+					},
 				},
 			}
 		}
@@ -82,7 +89,7 @@ func createResourceMetric(resourceName v1.ResourceName, annotationName string, v
 	return nil
 }
 
-func createCustomMetrics(hpa *v2beta1.HorizontalPodAutoscaler, metricName string, annotations map[string]string, deploymentName string) *v2beta1.MetricSpec {
+func createExternalPrometheusMetrics(hpa *v2beta2.HorizontalPodAutoscaler, metricName string, annotations map[string]string, deploymentName string) *v2beta2.MetricSpec {
 
 	logrus.Infof("setup custom prometheus metric: %v", metricName)
 
@@ -95,63 +102,70 @@ func createCustomMetrics(hpa *v2beta1.HorizontalPodAutoscaler, metricName string
 	if len(hpa.Annotations) == 0 {
 		hpa.Annotations = make(map[string]string)
 	}
-	hpa.Annotations[fmt.Sprintf("metric-config.object.%s.prometheus/query", metricName)] = query
+	hpa.Annotations[fmt.Sprintf("metric-config.external.prometheus-query.prometheus/%s", metricName)] = query
 
-	perReplica := false
-	targetValueKey := fmt.Sprintf("prometheus.%v.%v/targetValue", metricName, hpaAnnotationPrefix)
-	targetAverageValueKey := fmt.Sprintf("prometheus.%v.%v/targetAverageValue", metricName, hpaAnnotationPrefix)
-
-	targetValueStr, ok := annotations[targetValueKey]
-	if !ok {
-		targetValueStr, ok = annotations[targetAverageValueKey]
-		perReplica = true
-		if !ok {
-			logrus.Errorf("either targetValue or targetAverageValue is required for custom metric: %s, deployment: %v", metricName, deploymentName)
-			return nil
-		}
-	}
-
-	targetValue, err := resource.ParseQuantity(targetValueStr)
-	if err != nil {
-		logrus.Errorf("targetValue / targetAverageValue is invalid in custom metric: %s, deployment: %s (%s)", metricName, deploymentName, err.Error())
-		return nil
-	}
-
-	if perReplica {
-		hpa.Annotations[fmt.Sprintf("metric-config.object.%s.prometheus/per-replica", metricName)] = "true"
-	}
-
-	return &v2beta1.MetricSpec{
-		Type: v2beta1.ObjectMetricSourceType,
-		Object: &v2beta1.ObjectMetricSource{
-			MetricName:  metricName,
-			TargetValue: targetValue,
-			Target: v2beta1.CrossVersionObjectReference{
-				Kind:       "Pod",
-				Name:       fmt.Sprintf("%s-%s", deploymentName, metricName),
-				APIVersion: "v1",
+	metricSpec := &v2beta2.MetricSpec{
+		Type: v2beta2.ExternalMetricSourceType,
+		External: &v2beta2.ExternalMetricSource{
+			Metric: v2beta2.MetricIdentifier{
+				Name: "prometheus-query",
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"query-name": metricName,
+					},
+				},
 			},
 		},
 	}
+
+	targetValueKey := fmt.Sprintf("prometheus.%v.%v/targetValue", metricName, hpaAnnotationPrefix)
+	targetAverageValueKey := fmt.Sprintf("prometheus.%v.%v/targetAverageValue", metricName, hpaAnnotationPrefix)
+
+	if valueStr, ok := annotations[targetValueKey]; ok {
+		targetValue, err := resource.ParseQuantity(valueStr)
+		if err != nil {
+			logrus.Errorf("targetValue is invalid in custom metric: %s, deployment: %s (%s)", metricName, deploymentName, err.Error())
+			return nil
+		}
+		metricSpec.External.Target = v2beta2.MetricTarget{
+			Type:  v2beta2.ValueMetricType,
+			Value: &targetValue,
+		}
+	} else if valueStr, ok = annotations[targetAverageValueKey]; ok {
+		targetValue, err := resource.ParseQuantity(valueStr)
+		if err != nil {
+			logrus.Errorf("targetAverageValue is invalid in custom metric: %s, deployment: %s (%s)", metricName, deploymentName, err.Error())
+			return nil
+		}
+		metricSpec.External.Target = v2beta2.MetricTarget{
+			Type:         v2beta2.AverageValueMetricType,
+			AverageValue: &targetValue,
+		}
+	} else {
+		logrus.Errorf("either targetValue or targetAverageValue is required for custom metric: %s, deployment: %v", metricName, deploymentName)
+		return nil
+	}
+
+	return metricSpec
 }
 
-func parseMetrics(hpa *v2beta1.HorizontalPodAutoscaler, annotations map[string]string, deploymentName string) []v2beta1.MetricSpec {
+func parseMetrics(hpa *v2beta2.HorizontalPodAutoscaler, annotations map[string]string, deploymentName string) []v2beta2.MetricSpec {
 
-	metrics := make([]v2beta1.MetricSpec, 0, 4)
-	customMetricsMap := make(map[string]*v2beta1.MetricSpec)
+	metrics := make([]v2beta2.MetricSpec, 0, 4)
+	customMetricsMap := make(map[string]*v2beta2.MetricSpec)
 
 	for metricKey, metricValue := range annotations {
 		keys := strings.Split(metricKey, annotationDomainSeparator)
 		if len(keys) != 2 {
-			logrus.Errorf("Metric annotation for deployment %v is invalid: metricKey", deploymentName, metricKey)
+			logrus.Errorf("Metric annotation for deployment %v is invalid: %v", deploymentName, metricKey)
 			return metrics
 		}
 		metricSubDomains := strings.Split(keys[0], annotationSubDomainSeparator)
 		if len(metricSubDomains) < 2 {
-			logrus.Errorf("Metric annotation for deployment %v is invalid: metricKey", deploymentName, metricKey)
+			logrus.Errorf("Metric annotation for deployment %v is invalid: %v", deploymentName, metricKey)
 			return metrics
 		}
-		var metric *v2beta1.MetricSpec
+		var metric *v2beta2.MetricSpec
 		switch metricSubDomains[0] {
 		case cpuAnnotationPrefix:
 			metric = createResourceMetric(v1.ResourceCPU, metricKey, keys[1], metricValue, deploymentName)
@@ -160,7 +174,7 @@ func parseMetrics(hpa *v2beta1.HorizontalPodAutoscaler, annotations map[string]s
 		case prometheusAnnotationPrefix:
 			metricName := metricSubDomains[1]
 			if _, ok := customMetricsMap[metricName]; !ok {
-				metric = createCustomMetrics(hpa, metricName, annotations, deploymentName)
+				metric = createExternalPrometheusMetrics(hpa, metricName, annotations, deploymentName)
 				customMetricsMap[metricName] = metric
 			}
 		}

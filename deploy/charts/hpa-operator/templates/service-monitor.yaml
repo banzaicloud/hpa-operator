@@ -15,9 +15,10 @@ spec:
     - path: /metrics
       port: https
   selector:
-    app: {{ template "hpa-operator.name" . }}
-    chart: {{ template "hpa-operator.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    matchLabels:
+      app: {{ template "hpa-operator.name" . }}
+      chart: {{ template "hpa-operator.chart" . }}
+      release: {{ .Release.Name }}
+      heritage: {{ .Release.Service }}
 {{- end }}
 

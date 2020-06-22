@@ -46,17 +46,19 @@ func (h *HPAHandler) HandleReplicaSet(
 
 	logrus.Infof("handle  : %v", name)
 	hpaAnnotationsFound := false
-	if !h.checkAutoscaleAnnotationIsPresent(annotations) {
-		annotations = podAnnotations
-		if !h.checkAutoscaleAnnotationIsPresent(annotations) {
-			logrus.Infof("Autoscale annotations not found")
-		} else {
-			hpaAnnotationsFound = true
-			logrus.Infof("Autoscale annotations found on Pod")
-		}
-	} else {
+	hpaAnnotations := h.filterAutoscaleAnnotations(annotations)
+	if len(hpaAnnotations) > 0 {
 		hpaAnnotationsFound = true
 		logrus.Infof("Autoscale annotations found on %v", kind)
+	} else {
+		hpaAnnotations = h.filterAutoscaleAnnotations(podAnnotations)
+		if len(hpaAnnotations) > 0 {
+			hpaAnnotationsFound = true
+			logrus.Infof("Autoscale annotations found on Pod")
+		} else {
+			hpaAnnotationsFound = false
+			logrus.Infof("Autoscale annotations not found")
+		}
 	}
 
 	hpa := v2beta2.HorizontalPodAutoscaler{}
@@ -78,7 +80,7 @@ func (h *HPAHandler) HandleReplicaSet(
 
 		if hpaAnnotationsFound {
 			logrus.Infof("HorizontalPodAutoscaler found, will be updated")
-			hpa := createHorizontalPodAutoscaler(UID, name, namespace, kind, apiVersion, annotations)
+			hpa := createHorizontalPodAutoscaler(UID, name, namespace, kind, apiVersion, hpaAnnotations)
 			if hpa == nil {
 				return nil
 			}
@@ -99,7 +101,7 @@ func (h *HPAHandler) HandleReplicaSet(
 
 	} else if hpaAnnotationsFound {
 		logrus.Infof("HorizontalPodAutoscaler doesn't exist will be created")
-		hpa := createHorizontalPodAutoscaler(UID, name, namespace, kind, apiVersion, annotations)
+		hpa := createHorizontalPodAutoscaler(UID, name, namespace, kind, apiVersion, hpaAnnotations)
 		if hpa == nil {
 			return nil
 		}
@@ -121,13 +123,14 @@ func isCreatedByHpaController(hpa *v2beta2.HorizontalPodAutoscaler, name string,
 	return false
 }
 
-func (h *HPAHandler) checkAutoscaleAnnotationIsPresent(annotations map[string]string) bool {
-	for key, _ := range annotations {
+func (h *HPAHandler) filterAutoscaleAnnotations(annotations map[string]string) map[string]string {
+	autoscaleAnnotations := make(map[string]string)
+	for key, value := range annotations {
 		if h.annotationRegExp.MatchString(key) {
-			return true
+			autoscaleAnnotations[key] = value
 		}
 	}
-	return false
+	return autoscaleAnnotations
 }
 
 func createHorizontalPodAutoscaler(UID types.UID, name string, namespace string, kind string, apiVersion string, annotations map[string]string) *v2beta2.HorizontalPodAutoscaler {

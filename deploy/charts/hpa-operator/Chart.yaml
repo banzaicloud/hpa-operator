@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: v2
 name: hpa-operator
 version: 0.3.0-dev.2
 description: A Helm chart for Kubernetes

@@ -7,6 +7,10 @@ We have open sourced a [Horizontal Pod Autoscaler operator](https://github.com/b
 - [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator)
 - [Horizontal Pod Autoscaler operator Helm chart](https://github.com/banzaicloud/hpa-operator/tree/master/deploy/charts/hpa-operator)
 
+### DEPRECATION NOTICE
+
+This operator and the helm chart is deprecated and no longer actively maintained.
+
 ### Autoscale by annotations
 
 Autoscale annotations can be placed:

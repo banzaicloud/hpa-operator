@@ -22,7 +22,7 @@ const targetAverageValue = "targetAverageValue"
 const annotationDomainSeparator = "/"
 const annotationSubDomainSeparator = "."
 
-const annotationRegExpString = "[a-zA-Z\\.]+hpa\\.autoscaling\\.banzaicloud\\.io\\/[a-zA-Z\\.]+"
+const annotationRegExpString = "[a-zA-Z\\.]*hpa\\.autoscaling\\.banzaicloud\\.io\\/[a-zA-Z\\.]+"
 
 func NewHandler(client client.Client) *HPAHandler {
 	r, _ := regexp.Compile(annotationRegExpString)

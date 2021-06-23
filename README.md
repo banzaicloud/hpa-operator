@@ -84,7 +84,8 @@ Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud
   1. Deploy operator
 
    ```
-    helm install banzaicloud-stable/hpa-operator
+    helm repo add banzaicloud-stable https://kubernetes-charts.banzaicloud.com
+    helm install hpa-operator banzaicloud-stable/hpa-operator
    ```
 
   2. Deploy Kafka chart, with autoscale annotations

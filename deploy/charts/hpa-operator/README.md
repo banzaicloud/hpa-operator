@@ -1,3 +1,7 @@
+> ⚠️ # DEPRECATION NOTICE ⚠️
+
+> This operator and the helm chart are deprecated and no longer actively maintained.
+
 # HPA operator Chart
 
 HPA operator (https://github.com/banzaicloud/hpa-operator) takes care of creating, deleting, updating HPA, with other words keeping in sync with your deployment annotations.

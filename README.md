@@ -1,4 +1,8 @@
-### Horizontal Pod Autoscaler operator
+> ⚠️ # DEPRECATION NOTICE ⚠️
+
+> This operator and the helm chart are deprecated and no longer actively maintained.
+
+# Horizontal Pod Autoscaler operator
 
 You may not want nor can edit a Helm chart just to add an autoscaling feature. Nearly all charts supports **custom annotations** so we believe that it would be a good idea to be able to setup autoscaling just by adding some simple annotations to your deployment. 
 
@@ -7,11 +11,7 @@ We have open sourced a [Horizontal Pod Autoscaler operator](https://github.com/b
 - [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator)
 - [Horizontal Pod Autoscaler operator Helm chart](https://github.com/banzaicloud/hpa-operator/tree/master/deploy/charts/hpa-operator)
 
-### DEPRECATION NOTICE
-
-This operator and the helm chart is deprecated and no longer actively maintained.
-
-### Autoscale by annotations
+## Autoscale by annotations
 
 Autoscale annotations can be placed:
 
@@ -49,7 +49,7 @@ Autoscale annotations can be placed:
 
 The [Horizontal Pod Autoscaler operator](https://github.com/banzaicloud/hpa-operator) takes care of creating, deleting, updating HPA, with other words keeping in sync with your deployment annotations.
 
-### Annotations explained
+## Annotations explained
 
 All annotations must contain the `autoscaling.banzaicloud.io` prefix. It is required to specify minReplicas/maxReplicas and at least one metric to be used for autoscale. You can add *Resource* type metrics for cpu & memory and *Pods* type metrics.
 Let's see what kind of annotations can be used to specify metrics:
@@ -66,7 +66,7 @@ Let's see what kind of annotations can be used to specify metrics:
 
 > To use custom metrics from *Prometheus*, you have to deploy `Prometheus Adapter` and `Metrics Server`, explained in detail in our previous post about [using HPA with custom metrics](https://banzaicloud.com/blog/k8s-horizontal-pod-autoscaler/)
 
-#### Custom metrics from version 0.1.5
+### Custom metrics from version 0.1.5
 
 From version 0.1.5 we have removed support for *Pod* type custom metrics and added support for Prometheus backed custom metrics exposed by [Kube Metrics Adapter](https://github.com/zalando-incubator/kube-metrics-adapter).
 To setup HPA based on Prometheus one has to setup the following deployment annotations:
@@ -81,7 +81,7 @@ The query should be a syntactically correct Prometheus query. Pay attention to s
 You should specify either targetValue or targetAverageValue, in which case metric value is averaged with current replica count.
 
 
-### Quick usage example
+## Quick usage example
 
 Let's pick **Kafka** as an example chart, from our curated list of [Banzai Cloud Helm charts](https://github.com/banzaicloud/banzai-charts/tree/master/kafka). The Kafka chart by default doesn't contains any HPA resources, however it allows specifying Pod annotations as params so it's a good example to start with. Now let's see how you can add a simple cpu based autoscale rule for Kafka brokers by adding some simple annotations:
 

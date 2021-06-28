@@ -1,4 +1,4 @@
-> ⚠️ # DEPRECATION NOTICE ⚠️
+> # ⚠️ DEPRECATION NOTICE ⚠️
 
 > This operator and the helm chart are deprecated and no longer actively maintained.
 
